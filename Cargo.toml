@@ -2,6 +2,8 @@
 name = "meowshatranj"
 version = "0.1.0"
 edition = "2024"
+license = "MIT"
+description = "a shatranj board representation and move generation library"
 
 [dependencies]
 arrayvec = "0.7.7"

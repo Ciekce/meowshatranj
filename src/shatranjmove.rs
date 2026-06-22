@@ -1,6 +1,7 @@
-use crate::core::Square;
+use crate::core::{Square, SquareStrError};
 use std::fmt::{Display, Formatter};
 use std::num::NonZeroU16;
+use std::str::FromStr;
 
 // Compatible with oranjformat
 
@@ -20,51 +21,51 @@ impl Move {
 
     const VALID_MASK: u16 = (1 << Self::TOTAL_BITS) - 1;
 
+    // Make a1a1 representable by always setting the msb internally
+    const PRESENT_BIT: u16 = 1 << 15;
+
     const FROM_SHIFT: usize = 0;
     const TO_SHIFT: usize = 6;
     const PROMO_SHIFT: usize = 12;
 
     #[must_use]
     pub const fn new(from: Square, to: Square) -> Self {
-        assert!(from.raw() != 0 || to.raw() != 0);
-
-        let mut value = 0;
+        let mut value = Self::PRESENT_BIT;
 
         value |= (from.raw() as u16) << Self::FROM_SHIFT;
         value |= (to.raw() as u16) << Self::TO_SHIFT;
 
         Self {
-            // SAFETY: `value` can only be 0 if from == to == A1 (0), which we checked above
+            // SAFETY: `value` always has `PRESENT_BIT` set, and thus is nonzero
             raw: unsafe { NonZeroU16::new_unchecked(value) },
         }
     }
 
     #[must_use]
     pub const fn new_promo(from: Square, to: Square) -> Self {
-        let mut value = 0;
+        let mut value = Self::PRESENT_BIT;
 
         value |= (from.raw() as u16) << Self::FROM_SHIFT;
         value |= (to.raw() as u16) << Self::TO_SHIFT;
         value |= 1 << Self::PROMO_SHIFT;
 
         Self {
-            // SAFETY: the promo flag is set, which is nonzero
+            // SAFETY: `value` always has `PRESENT_BIT` and the promo flag set, and thus is nonzero
             raw: unsafe { NonZeroU16::new_unchecked(value) },
         }
     }
 
     #[must_use]
     pub const unsafe fn from_raw_unchecked(raw: u16) -> Self {
-        debug_assert!(raw != 0);
         debug_assert!(raw & !Self::VALID_MASK == 0);
         Self {
-            raw: unsafe { NonZeroU16::new_unchecked(raw) },
+            raw: unsafe { NonZeroU16::new_unchecked(raw | Self::PRESENT_BIT) },
         }
     }
 
     #[must_use]
     pub const fn from_raw(raw: u16) -> Option<Self> {
-        if raw == 0 || raw & !Self::VALID_MASK != 0 {
+        if raw & !Self::VALID_MASK != 0 {
             None
         } else {
             // SAFETY: we just checked that the pattern is valid
@@ -94,7 +95,7 @@ impl Move {
 
     #[must_use]
     pub const fn raw(self) -> u16 {
-        self.raw.get()
+        self.raw.get() ^ Self::PRESENT_BIT
     }
 }
 
@@ -105,6 +106,51 @@ impl Display for Move {
             write!(f, "q")?;
         }
         Ok(())
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum MoveStrError {
+    NonAsciiString,
+    TooShort,
+    TooLong,
+    InvalidFromSquare(SquareStrError),
+    InvalidToSquare(SquareStrError),
+    InvalidPromoPiece,
+}
+
+impl FromStr for Move {
+    type Err = MoveStrError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if !s.is_ascii() {
+            return Err(MoveStrError::NonAsciiString);
+        }
+
+        if s.len() < 4 {
+            return Err(MoveStrError::TooShort);
+        }
+
+        if s.len() > 5 {
+            return Err(MoveStrError::TooLong);
+        }
+
+        let from_sq = s[0..2]
+            .parse::<Square>()
+            .map_err(MoveStrError::InvalidFromSquare)?;
+        let to_sq = s[2..4]
+            .parse::<Square>()
+            .map_err(MoveStrError::InvalidToSquare)?;
+
+        if s.len() == 5 {
+            if s.as_bytes()[4] != b'q' {
+                return Err(MoveStrError::InvalidPromoPiece);
+            }
+
+            Ok(Move::new_promo(from_sq, to_sq))
+        } else {
+            Ok(Move::new(from_sq, to_sq))
+        }
     }
 }
 
@@ -130,7 +176,6 @@ mod tests {
 
     #[test]
     fn from_raw() {
-        assert!(Move::from_raw(0).is_none());
         assert!(Move::from_raw(0b1110_0000_0000_0000).is_none());
         assert_eq!(
             Move::from_raw(0b0000_0101_0000_1100).unwrap(),

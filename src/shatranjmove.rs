@@ -154,6 +154,7 @@ impl FromStr for Move {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use super::Move;
     use crate::core::Square;

@@ -792,6 +792,7 @@ impl Default for PositionBuilder {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use crate::bitboard::Bitboard;
     use crate::position::Position;

@@ -26,6 +26,7 @@ pub enum FenError {
     InvalidHalfmove,
     HalfmoveTooHigh,
     InvalidFullmove,
+    OpponentInCheck,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -203,6 +204,10 @@ impl Position {
         }
 
         pos.regen();
+
+        if pos.is_attacked(pos.king_sq(pos.stm.flip()), pos.stm) {
+            return Err(FenError::OpponentInCheck);
+        }
 
         Ok(pos)
     }
@@ -452,6 +457,41 @@ impl Position {
         }
 
         true
+    }
+
+    #[must_use]
+    pub fn is_attacked(&self, sq: Square, attacker: Color) -> bool {
+        let pawns = self.piece_bb(PieceType::Pawn.with_color(attacker));
+        if pawn_attacks(sq, attacker.flip()).intersects(pawns) {
+            return true;
+        }
+
+        let alfils = self.piece_bb(PieceType::Alfil.with_color(attacker));
+        if alfil_attacks(sq).intersects(alfils) {
+            return true;
+        }
+
+        let ferzes = self.piece_bb(PieceType::Ferz.with_color(attacker));
+        if ferz_attacks(sq).intersects(ferzes) {
+            return true;
+        }
+
+        let knights = self.piece_bb(PieceType::Knight.with_color(attacker));
+        if knight_attacks(sq).intersects(knights) {
+            return true;
+        }
+
+        let kings = self.piece_bb(PieceType::King.with_color(attacker));
+        if king_attacks(sq).intersects(kings) {
+            return true;
+        }
+
+        let rooks = self.piece_bb(PieceType::Rook.with_color(attacker));
+        if rook_attacks(sq, self.occ()).intersects(rooks) {
+            return true;
+        }
+
+        false
     }
 
     #[must_use]

@@ -82,6 +82,11 @@ impl Bitboard {
     }
 
     #[must_use]
+    pub const fn intersects(self, other: Bitboard) -> bool {
+        !self.and(other).is_empty()
+    }
+
+    #[must_use]
     pub const fn cmpl(self) -> Self {
         Self { raw: !self.raw }
     }

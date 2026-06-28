@@ -766,6 +766,7 @@ pub enum PositionBuilderError {
     TooManyKings,
     PieceAlreadyOnSquare,
     HalfmoveTooHigh,
+    OpponentInCheck,
 }
 
 #[derive(Clone)]
@@ -784,6 +785,13 @@ impl PositionBuilder {
 
         self.pos.stm = stm;
         self.pos.regen();
+
+        if self
+            .pos
+            .is_attacked(self.pos.king_sq(self.pos.stm.flip()), self.pos.stm)
+        {
+            return Err(PositionBuilderError::OpponentInCheck);
+        }
 
         Ok(self.pos)
     }
